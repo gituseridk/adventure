@@ -1,3 +1,4 @@
+use cgmath::Point3;
 use wgpu::util::DeviceExt;
 
 #[rustfmt::skip]
@@ -9,50 +10,35 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
 );
 
 pub struct CameraState {
-  eye: cgmath::Point3<f32>,
-  target: cgmath::Point3<f32>,
-  up: cgmath::Vector3<f32>,
-  aspect: f32,
-  fov_y: f32,
-  z_near: f32,
-  z_far: f32,
+  pub eye: cgmath::Point3<f32>,
+  pub target: cgmath::Point3<f32>,
+  pub up: cgmath::Vector3<f32>,
+  pub aspect: f32,
+  pub fov_y: f32,
+  pub z_near: f32,
+  pub z_far: f32,
 }
 
 pub struct Camera {
-    state: CameraState,
+    pub state: CameraState,
     buffer: wgpu::Buffer,
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
+    uniform: CameraUniform,
 }
 
 impl Camera {
     pub fn new(
         device: &wgpu::Device,
-        eye: cgmath::Point3<f32>,
-        target: cgmath::Point3<f32>,
-        up: cgmath::Vector3<f32>,
-        aspect: f32,
-        fov_y: f32,
-        z_near: f32,
-        z_far: f32,
+        state: CameraState,
     ) -> Self {
-        let state = CameraState {
-            eye,
-            target,
-            up,
-            aspect,
-            fov_y,
-            z_near,
-            z_far,
-        };
-
-        let mut camera_uniform = CameraUniform::new();
-        camera_uniform.update_view_proj(&state);
+        let mut uniform = CameraUniform::new();
+        uniform.update_view_proj(&state);
 
         let buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Camera Buffer"),
-                contents: bytemuck::cast_slice(&[camera_uniform]),
+                contents: bytemuck::cast_slice(&[uniform]),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         );
@@ -85,6 +71,7 @@ impl Camera {
         });
 
         let result = Self {
+            uniform,
             state,
             buffer,
             bind_group,
@@ -100,6 +87,11 @@ impl Camera {
 
     pub fn get_bind_group_layout(self: &Self) -> &wgpu::BindGroupLayout {
         return &self.bind_group_layout;
+    }
+
+    pub fn update_uniform(self: &mut Self, queue: &wgpu::Queue) {
+        self.uniform.update_view_proj(&self.state);
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[self.uniform]));
     }
 }
 
